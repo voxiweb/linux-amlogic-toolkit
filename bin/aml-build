@@ -1,6 +1,6 @@
 #!/bin/sh
 
-./bin/cleanup
+aml-cleanup
 
 mkdir -p output/system
 mkdir -p output/image

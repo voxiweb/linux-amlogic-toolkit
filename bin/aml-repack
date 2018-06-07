@@ -1,0 +1,80 @@
+#!/bin/sh
+
+if [ -e output/image/system.img ]; then
+    if [ $# -eq 1 ]; then
+    	if [ -e "data-i18n/$1" ] || [ "$1" = "none" ]; then
+    		if [ "$1" != "none" ]; then
+    			echo "Applying language $1..." 		
+    			
+    			echo "Backing up build.prop..."
+    			mkdir tmp
+    			cp output/system/build.prop tmp/build.prop
+    			
+    			ALANG="$1"
+    			
+    			LANGUAGE=`echo $1 | cut -c1-2`
+    			REGION=`echo $1 | cut -c4-6`
+    			
+    			echo "Applying language to build.prop..."
+    			sudo sed -i -e "s:@LANGUAGE@:$LANGUAGE:g" output/system/build.prop
+    			sudo sed -i -e "s:@REGION@:$REGION:g" output/system/build.prop
+    				  			
+    			echo "Repacking data..."
+    			mkdir -p tmp/data
+    			
+    			cp -R data-generic/* tmp/data
+    			cp -R data-i18n/$1/* tmp/data
+    			
+    			cd tmp/data
+    			sudo zip -rv ../../output/system/etc/voxitv/data.zip *
+    			cd ../..  
+    		else
+    			echo "Packing a generic image..."
+    		fi
+    		sync
+		echo "Converting back system.img to system.PARTITION..."
+		rm -f output/image/system.PARTITION
+		bin/img2simg output/image/system.img output/image/system.PARTITION
+
+		echo "Repacking logo..."
+		rm -f output/image/logo.PARTITION
+		bin/logo_img_packer -r output/logo output/image/logo.PARTITION
+		
+		echo "Repacking boot..."
+		rm -f output/image/boot.PARTITION
+		bin/abootimg --create output/image/boot.PARTITION -f output/boot/bootimg.cfg -k output/boot/zImage -r output/boot/initrd.img
+
+		VERSION=`cat data-generic/version`
+		DATE=`date +%d-%m-%Y`
+		LANGUAGE="$1"
+		OUTPUT="voxitv-$VERSION-$DATE-$LANGUAGE.img"
+		
+		echo "Packing image to $OUTPUT..."
+		bin/aml_image_v2_packer -r output/image/image.cfg output/image $OUTPUT
+
+		sync
+		
+		if [ "$1" != "none" ]; then
+			echo "Removing language $1..."
+			echo "Restoring build.prop..."
+			sudo sh -c "cat tmp/build.prop > output/system/build.prop"
+			
+			echo "Removing data..."
+			sudo rm -f output/system/etc/voxitv/data.zip
+			
+			rm -rf tmp
+		fi
+		
+		sync
+
+		echo "Done"
+	else
+		echo "Unknown locale $2"
+    	fi
+    else
+        echo "Usage: repack [locale]"
+    fi
+else
+    echo "Please unpack an image before trying to repack it"
+fi
+
